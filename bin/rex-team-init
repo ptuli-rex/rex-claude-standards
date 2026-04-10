@@ -7,17 +7,6 @@ PROJECT_DIR="$(pwd)"
 echo "=== Rex Team Init ==="
 echo ""
 
-# Check that we're in a git repo
-if ! git rev-parse --is-inside-work-tree &>/dev/null; then
-  echo "Error: Not inside a git repository. Run this from your project root."
-  exit 1
-fi
-
-REPO_ROOT="$(git rev-parse --show-toplevel)"
-WORKSPACE_DIR="$(dirname "$REPO_ROOT")"
-REPO_NAME="$(basename "$REPO_ROOT")"
-WORKSPACE_NAME="$(basename "$WORKSPACE_DIR")"
-
 # Check that rex standards are installed
 if [ ! -L "$HOME/.claude/rules/rex" ]; then
   echo "Error: Rex standards not installed. Run setup first:"
@@ -25,82 +14,101 @@ if [ ! -L "$HOME/.claude/rules/rex" ]; then
   exit 1
 fi
 
-# ─── Nudge: workspace root setup ─────────────────────────────
-# Products like GetDone, PayUp, TenantPort should have a root workspace
-# directory that contains child repos (gd-api, gd-ui, etc.).
-# Claude Code should be opened at the workspace level, not inside a single repo.
+# ─── Determine if we're in a workspace root or a child repo ───
+if git rev-parse --is-inside-work-tree &>/dev/null; then
+  # Inside a git repo — treat parent as workspace
+  REPO_ROOT="$(git rev-parse --show-toplevel)"
+  WORKSPACE_DIR="$(dirname "$REPO_ROOT")"
+  MODE="child"
+else
+  # Not a git repo — assume this IS the workspace root
+  WORKSPACE_DIR="$PROJECT_DIR"
+  MODE="workspace"
+fi
 
-echo "Repo:      $REPO_ROOT"
+WORKSPACE_NAME="$(basename "$WORKSPACE_DIR")"
 echo "Workspace: $WORKSPACE_DIR ($WORKSPACE_NAME)"
 echo ""
 
-# Check if workspace looks like a proper root (has multiple child dirs or a CLAUDE.md)
-CHILD_REPOS=$(find "$WORKSPACE_DIR" -maxdepth 2 -name ".git" -type d 2>/dev/null | wc -l | tr -d ' ')
-
-if [ "$CHILD_REPOS" -lt 2 ] && [ ! -f "$WORKSPACE_DIR/CLAUDE.md" ]; then
-  echo "Warning: '$WORKSPACE_DIR' doesn't look like a workspace root."
-  echo ""
-  echo "Rex projects should have a root directory structure like:"
-  echo ""
-  echo "  getdone/          <-- workspace root (open Claude Code here)"
-  echo "    gd-api/         <-- child repo"
-  echo "    gd-ui/          <-- child repo"
-  echo "    CLAUDE.md       <-- workspace-level instructions"
-  echo "    .claude/        <-- workspace-level commands & config"
-  echo ""
-  echo "  payup/"
-  echo "    payup-api/"
-  echo "    payup-ui/"
-  echo "    CLAUDE.md"
-  echo ""
-  echo "Reference workspace repos (already set up):"
-  echo "  - getdone:    https://github.com/GetDone-Rex/getdone (gd-api, gd-ui, gd-lambda-reports, GetDone-website)"
-  echo "  - payup:      https://github.com/GetDone-Rex/payup (payup-api, payup-ui)"
-  echo "  - tenantport:  https://github.com/GetDone-Rex/tenantport (tenantport-api, tenantport-ui)"
-  echo ""
-  echo "To set up a new workspace:"
-  echo "  1. Create a root directory (e.g., mkdir ~/projects/myproduct)"
-  echo "  2. Clone your child repos inside it"
-  echo "  3. Create a /setup-repos command to automate cloning for your team:"
-  echo "     mkdir -p <workspace>/.claude/commands"
-  echo "     Create <workspace>/.claude/commands/setup-repos.md listing your repos."
-  echo "     See getdone/.claude/commands/setup-repos.md for an example."
-  echo "  4. Open Claude Code from the root directory"
-  echo "  5. Re-run this script from inside a child repo"
-  echo ""
-  read -p "Continue anyway? (y/N) " -n 1 -r
-  echo
-  if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo "Aborted. Set up your workspace root first."
-    exit 0
-  fi
-fi
-
-# ─── Add imports to repo CLAUDE.md ────────────────────────────
-CLAUDE_MD="$REPO_ROOT/CLAUDE.md"
-
-if [ -f "$CLAUDE_MD" ]; then
-  if grep -q "rex/zoho-workflow" "$CLAUDE_MD"; then
-    echo "CLAUDE.md already has rex imports. Skipping."
+# ─── Workspace root: check for git repo ──────────────────────
+if [ "$MODE" = "workspace" ]; then
+  if [ -d "$WORKSPACE_DIR/.git" ]; then
+    echo "Workspace root is already a git repo."
   else
-    echo "" >> "$CLAUDE_MD"
-    echo "# Rex Team Standards" >> "$CLAUDE_MD"
-    echo "@~/.claude/rules/rex/zoho-workflow.md" >> "$CLAUDE_MD"
-    echo "Updated $CLAUDE_MD with rex imports."
+    echo "The workspace root is not a git repo."
+    echo ""
+    echo "Rex workspaces should be git repos so they can track CLAUDE.md,"
+    echo ".claude/ commands, and workspace-level config."
+    echo ""
+    echo "Reference workspace repos (already set up):"
+    echo "  - getdone:     https://github.com/GetDone-Rex/getdone"
+    echo "  - payup:       https://github.com/GetDone-Rex/payup"
+    echo "  - tenantport:  https://github.com/GetDone-Rex/tenantport"
+    echo ""
+    read -p "Initialize a git repo here ($WORKSPACE_DIR)? (Y/n) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+      git init "$WORKSPACE_DIR"
+      echo ""
+    else
+      echo "Skipped. You can always run 'git init' later."
+      echo ""
+    fi
   fi
-else
-  echo "# Rex Team Standards" > "$CLAUDE_MD"
-  echo "@~/.claude/rules/rex/zoho-workflow.md" >> "$CLAUDE_MD"
-  echo "Created $CLAUDE_MD with rex imports."
 fi
+
+# ─── Check for child repos ───────────────────────────────────
+CHILD_REPOS=$(find "$WORKSPACE_DIR" -maxdepth 2 -name ".git" -type d 2>/dev/null | grep -v "^$WORKSPACE_DIR/.git$" | wc -l | tr -d ' ')
+
+if [ "$CHILD_REPOS" -lt 1 ]; then
+  echo "No child repos found in $WORKSPACE_DIR."
+  echo ""
+  echo "Rex workspaces contain child repos (api, ui, etc.):"
+  echo ""
+  echo "  $WORKSPACE_NAME/"
+  echo "    ${WORKSPACE_NAME}-api/    <-- child repo"
+  echo "    ${WORKSPACE_NAME}-ui/     <-- child repo"
+  echo "    CLAUDE.md"
+  echo "    .claude/"
+  echo ""
+  echo "Create a /setup-repos command to automate cloning for your team:"
+  echo "  mkdir -p $WORKSPACE_DIR/.claude/commands"
+  echo "  Create $WORKSPACE_DIR/.claude/commands/setup-repos.md listing your repos."
+  echo "  See getdone/.claude/commands/setup-repos.md for an example."
+  echo ""
+fi
+
+# ─── Add imports to CLAUDE.md ─────────────────────────────────
+# Add to workspace CLAUDE.md (always), and repo CLAUDE.md (if in child mode)
+TARGETS=("$WORKSPACE_DIR/CLAUDE.md")
+if [ "$MODE" = "child" ]; then
+  TARGETS+=("$REPO_ROOT/CLAUDE.md")
+fi
+
+for CLAUDE_MD in "${TARGETS[@]}"; do
+  if [ -f "$CLAUDE_MD" ]; then
+    if grep -q "rex/zoho-workflow" "$CLAUDE_MD"; then
+      echo "Already has rex imports: $CLAUDE_MD"
+    else
+      echo "" >> "$CLAUDE_MD"
+      echo "# Rex Team Standards" >> "$CLAUDE_MD"
+      echo "@~/.claude/rules/rex/zoho-workflow.md" >> "$CLAUDE_MD"
+      echo "Updated: $CLAUDE_MD"
+    fi
+  else
+    echo "# Rex Team Standards" > "$CLAUDE_MD"
+    echo "@~/.claude/rules/rex/zoho-workflow.md" >> "$CLAUDE_MD"
+    echo "Created: $CLAUDE_MD"
+  fi
+done
 
 # ─── Check for /prod-release command ──────────────────────────
-if [ -f "$WORKSPACE_DIR/.claude/skills/prod-release/SKILL.md" ] || [ -f "$REPO_ROOT/.claude/skills/prod-release/SKILL.md" ]; then
+if [ -f "$WORKSPACE_DIR/.claude/skills/prod-release/SKILL.md" ]; then
   echo "/prod-release command already configured."
 else
   echo ""
   echo "No /prod-release command found for this workspace."
-  echo "Run rex-setup-release from inside the repo to configure one:"
+  echo "Run rex-setup-release to configure one:"
   echo "  $STANDARDS_DIR/bin/rex-setup-release"
 fi
 
