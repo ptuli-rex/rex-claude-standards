@@ -4,7 +4,6 @@ set -e
 STANDARDS_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PROJECT_DIR="$(pwd)"
 CLAUDE_MD="$PROJECT_DIR/CLAUDE.md"
-IMPORT_LINE="@~/.claude/rules/rex/zoho-workflow.md"
 
 echo "=== Rex Team Init ==="
 echo "Project: $PROJECT_DIR"
@@ -31,22 +30,21 @@ if [ -f "$CLAUDE_MD" ]; then
     echo "" >> "$CLAUDE_MD"
     echo "# Rex Team Standards" >> "$CLAUDE_MD"
     echo "@~/.claude/rules/rex/zoho-workflow.md" >> "$CLAUDE_MD"
-    echo "@~/.claude/rules/rex/code-conventions.md" >> "$CLAUDE_MD"
     echo "Updated CLAUDE.md with rex imports."
   fi
 else
   echo "# Rex Team Standards" > "$CLAUDE_MD"
   echo "@~/.claude/rules/rex/zoho-workflow.md" >> "$CLAUDE_MD"
-  echo "@~/.claude/rules/rex/code-conventions.md" >> "$CLAUDE_MD"
   echo "Created CLAUDE.md with rex imports."
 fi
 
-# Check for prod-release skill, nudge if missing
-if [ -f "$PROJECT_DIR/.claude/skills/prod-release/SKILL.md" ]; then
-  echo "Prod release skill already configured. Skipping."
+# Check for prod-release command at workspace level
+WORKSPACE_DIR="$(dirname "$(git rev-parse --show-toplevel)")"
+if [ -f "$WORKSPACE_DIR/.claude/skills/prod-release/SKILL.md" ] || [ -f "$PROJECT_DIR/.claude/skills/prod-release/SKILL.md" ]; then
+  echo "/prod-release command already configured."
 else
   echo ""
-  echo "No prod-release skill found for this project."
+  echo "No /prod-release command found for this workspace."
   echo "Run rex-setup-release to configure one:"
   echo "  $STANDARDS_DIR/bin/rex-setup-release"
   echo ""

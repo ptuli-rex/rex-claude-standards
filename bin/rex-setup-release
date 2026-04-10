@@ -2,11 +2,8 @@
 set -e
 
 PROJECT_DIR="$(pwd)"
-SKILL_DIR="$PROJECT_DIR/.claude/skills/prod-release"
-SKILL_FILE="$SKILL_DIR/SKILL.md"
 
 echo "=== Rex Release Process Setup ==="
-echo "Project: $PROJECT_DIR"
 echo ""
 
 # Check that we're in a git repo
@@ -15,10 +12,30 @@ if ! git rev-parse --is-inside-work-tree &>/dev/null; then
   exit 1
 fi
 
-# Check if skill already exists
-if [ -f "$SKILL_FILE" ]; then
-  echo "A prod-release skill already exists at:"
-  echo "  $SKILL_FILE"
+# Detect workspace root (parent of the repo, where Claude Code is typically opened)
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+WORKSPACE_DIR="$(dirname "$REPO_ROOT")"
+
+echo "Repo: $REPO_ROOT"
+echo "Workspace: $WORKSPACE_DIR"
+echo ""
+
+# Ask user to confirm workspace location
+read -p "Is '$WORKSPACE_DIR' your Claude Code workspace root? (Y/n) " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Nn]$ ]]; then
+  read -p "Enter workspace root path: " WORKSPACE_DIR
+  WORKSPACE_DIR="${WORKSPACE_DIR/#\~/$HOME}"
+fi
+
+CMD_DIR="$WORKSPACE_DIR/.claude/skills/prod-release"
+CMD_FILE="$CMD_DIR/SKILL.md"
+
+# Check if command already exists
+if [ -f "$CMD_FILE" ]; then
+  echo ""
+  echo "A /prod-release command already exists at:"
+  echo "  $CMD_FILE"
   echo ""
   read -p "Overwrite it? (y/N) " -n 1 -r
   echo
@@ -29,22 +46,35 @@ if [ -f "$SKILL_FILE" ]; then
 fi
 
 # Get repo info
-REPO_NAME=$(basename "$PROJECT_DIR")
+REPO_NAME=$(basename "$REPO_ROOT")
 REMOTE_URL=$(git remote get-url origin 2>/dev/null || echo "")
 GH_REPO=""
 if [[ "$REMOTE_URL" =~ github\.com[:/]([^/]+/[^/.]+) ]]; then
   GH_REPO="${BASH_REMATCH[1]}"
 fi
 
+echo ""
 echo "Detected repo: ${GH_REPO:-$REPO_NAME}"
 echo ""
 
+# Ask about GitHub org — needed if workspace has multiple repos
+echo "Does your workspace have multiple repos that release to prod? (y/N)"
+read -p "" -n 1 -r
+echo
+MULTI_REPO=false
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+  MULTI_REPO=true
+  echo "The skill will ask which repo to release at runtime."
+  echo ""
+  echo "Enter the GitHub org (e.g., GetDone-Rex):"
+  read -r GH_ORG
+fi
+
 # Ask questions
-echo "How do you release this project to prod?"
+echo "How do you release to prod?"
 echo "  1) PR from main to prod branch (default)"
 echo "  2) Direct push to main triggers deploy"
-echo "  3) Manual deploy command"
-echo "  4) Other (describe in next step)"
+echo "  3) Other (you'll fill in the steps manually)"
 echo ""
 read -p "Choice [1]: " RELEASE_TYPE
 RELEASE_TYPE=${RELEASE_TYPE:-1}
@@ -60,11 +90,33 @@ if [ "$RELEASE_TYPE" = "1" ]; then
   fi
 fi
 
-# Generate SKILL.md
-mkdir -p "$SKILL_DIR"
+# Generate command
+mkdir -p "$CMD_DIR"
 
 if [ "$RELEASE_TYPE" = "1" ]; then
-  cat > "$SKILL_FILE" << SKILL_EOF
+  if [ "$MULTI_REPO" = true ]; then
+    cat > "$CMD_FILE" << SKILL_EOF
+---
+name: prod-release
+description: |
+  Production release workflow. Creates a PR from main to prod, and merges it.
+  Use when asked to "release to prod", "deploy to production", or "prod release".
+disable-model-invocation: true
+---
+
+Perform a production release for the specified repo.
+
+Ask the user which repo to release. The GitHub org is ${GH_ORG}.
+
+Steps:
+1. Check for uncommitted or unpushed changes in the selected repo directory. If any exist, commit and push them to \`main\` first.
+2. Run \`git fetch origin\` in the selected repo directory.
+3. Create a PR from main to prod: \`gh pr create --repo ${GH_ORG}/<repo> --base prod --head main --title "Release: merge main to prod" --body "Production release"\`.
+4. If a PR already exists, find it with \`gh pr list --repo ${GH_ORG}/<repo> --base prod --head main --state open --json number,title,url\`.
+5. Merge the PR with \`gh pr merge <PR_NUMBER> --repo ${GH_ORG}/<repo> --merge\`.
+SKILL_EOF
+  else
+    cat > "$CMD_FILE" << SKILL_EOF
 ---
 name: prod-release
 description: |
@@ -82,9 +134,10 @@ Steps:
 4. If a PR already exists, find it with \`gh pr list --repo ${GH_REPO} --base prod --head main --state open --json number,title,url\`.
 5. Merge the PR with \`gh pr merge <PR_NUMBER> --repo ${GH_REPO} --merge\`.
 SKILL_EOF
+  fi
 
   if [ -n "$POST_MERGE_STEPS" ]; then
-    cat >> "$SKILL_FILE" << SKILL_EOF
+    cat >> "$CMD_FILE" << SKILL_EOF
 6. After merging: ${POST_MERGE_STEPS}
 SKILL_EOF
   fi
@@ -134,7 +187,7 @@ SKILL_EOF
 fi
 
 echo ""
-echo "Created: $SKILL_FILE"
+echo "Created: $CMD_FILE"
 echo ""
-echo "You can edit it anytime at: $SKILL_FILE"
+echo "The command is at the workspace level so it works across all repos in this workspace."
 echo "Use '/prod-release' in Claude Code to trigger it."
