@@ -14,7 +14,7 @@ cd ~/.claude/rex-standards && ./setup
 ### 2. Init a project (once per repo)
 
 ```bash
-cd ~/projects/getdone/gd-api
+cd ~/projects/getdone
 ~/.claude/rex-standards/bin/rex-team-init
 ```
 
