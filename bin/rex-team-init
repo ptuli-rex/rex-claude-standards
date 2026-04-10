@@ -1,0 +1,56 @@
+#!/bin/bash
+set -e
+
+STANDARDS_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+PROJECT_DIR="$(pwd)"
+CLAUDE_MD="$PROJECT_DIR/CLAUDE.md"
+IMPORT_LINE="@~/.claude/rules/rex/zoho-workflow.md"
+
+echo "=== Rex Team Init ==="
+echo "Project: $PROJECT_DIR"
+echo ""
+
+# Check that we're in a git repo
+if ! git rev-parse --is-inside-work-tree &>/dev/null; then
+  echo "Error: Not inside a git repository. Run this from your project root."
+  exit 1
+fi
+
+# Check that rex standards are installed
+if [ ! -L "$HOME/.claude/rules/rex" ]; then
+  echo "Error: Rex standards not installed. Run setup first:"
+  echo "  cd $STANDARDS_DIR && ./setup"
+  exit 1
+fi
+
+# Add import to CLAUDE.md if not already present
+if [ -f "$CLAUDE_MD" ]; then
+  if grep -q "rex/zoho-workflow" "$CLAUDE_MD"; then
+    echo "CLAUDE.md already has rex imports. Skipping."
+  else
+    echo "" >> "$CLAUDE_MD"
+    echo "# Rex Team Standards" >> "$CLAUDE_MD"
+    echo "@~/.claude/rules/rex/zoho-workflow.md" >> "$CLAUDE_MD"
+    echo "@~/.claude/rules/rex/code-conventions.md" >> "$CLAUDE_MD"
+    echo "Updated CLAUDE.md with rex imports."
+  fi
+else
+  echo "# Rex Team Standards" > "$CLAUDE_MD"
+  echo "@~/.claude/rules/rex/zoho-workflow.md" >> "$CLAUDE_MD"
+  echo "@~/.claude/rules/rex/code-conventions.md" >> "$CLAUDE_MD"
+  echo "Created CLAUDE.md with rex imports."
+fi
+
+# Check for prod-release skill, nudge if missing
+if [ -f "$PROJECT_DIR/.claude/skills/prod-release/SKILL.md" ]; then
+  echo "Prod release skill already configured. Skipping."
+else
+  echo ""
+  echo "No prod-release skill found for this project."
+  echo "Run rex-setup-release to configure one:"
+  echo "  $STANDARDS_DIR/bin/rex-setup-release"
+  echo ""
+fi
+
+echo ""
+echo "Done. Start a new Claude Code session to pick up the standards."

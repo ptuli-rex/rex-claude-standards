@@ -1,0 +1,38 @@
+#!/bin/bash
+set -e
+
+INSTALL_DIR="$(cd "$(dirname "$0")" && pwd)"
+RULES_LINK="$HOME/.claude/rules/rex"
+
+echo "=== Rex Claude Standards Setup ==="
+echo ""
+
+# Ensure ~/.claude/rules exists
+mkdir -p "$HOME/.claude/rules"
+
+# Symlink rules directory
+if [ -L "$RULES_LINK" ]; then
+  echo "Updating existing symlink at $RULES_LINK"
+  rm "$RULES_LINK"
+elif [ -d "$RULES_LINK" ]; then
+  echo "Warning: $RULES_LINK is a real directory. Backing up to ${RULES_LINK}.bak"
+  mv "$RULES_LINK" "${RULES_LINK}.bak"
+fi
+
+ln -s "$INSTALL_DIR/rules" "$RULES_LINK"
+echo "Linked rules -> $RULES_LINK"
+
+# Add bin to PATH hint
+if ! echo "$PATH" | grep -q "$INSTALL_DIR/bin"; then
+  echo ""
+  echo "Optional: Add to your shell profile for easy access:"
+  echo "  export PATH=\"$INSTALL_DIR/bin:\$PATH\""
+fi
+
+echo ""
+echo "Rex standards installed."
+echo ""
+echo "Next: run 'rex-team-init' inside each project repo:"
+echo "  cd ~/projects/getdone/gd-api"
+echo "  $INSTALL_DIR/bin/rex-team-init"
+echo ""
