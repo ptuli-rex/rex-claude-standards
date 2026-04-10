@@ -3,10 +3,8 @@ set -e
 
 STANDARDS_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PROJECT_DIR="$(pwd)"
-CLAUDE_MD="$PROJECT_DIR/CLAUDE.md"
 
 echo "=== Rex Team Init ==="
-echo "Project: $PROJECT_DIR"
 echo ""
 
 # Check that we're in a git repo
@@ -15,6 +13,11 @@ if ! git rev-parse --is-inside-work-tree &>/dev/null; then
   exit 1
 fi
 
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+WORKSPACE_DIR="$(dirname "$REPO_ROOT")"
+REPO_NAME="$(basename "$REPO_ROOT")"
+WORKSPACE_NAME="$(basename "$WORKSPACE_DIR")"
+
 # Check that rex standards are installed
 if [ ! -L "$HOME/.claude/rules/rex" ]; then
   echo "Error: Rex standards not installed. Run setup first:"
@@ -22,7 +25,55 @@ if [ ! -L "$HOME/.claude/rules/rex" ]; then
   exit 1
 fi
 
-# Add import to CLAUDE.md if not already present
+# ─── Nudge: workspace root setup ─────────────────────────────
+# Products like GetDone, PayUp, TenantPort should have a root workspace
+# directory that contains child repos (gd-api, gd-ui, etc.).
+# Claude Code should be opened at the workspace level, not inside a single repo.
+
+echo "Repo:      $REPO_ROOT"
+echo "Workspace: $WORKSPACE_DIR ($WORKSPACE_NAME)"
+echo ""
+
+# Check if workspace looks like a proper root (has multiple child dirs or a CLAUDE.md)
+CHILD_REPOS=$(find "$WORKSPACE_DIR" -maxdepth 2 -name ".git" -type d 2>/dev/null | wc -l | tr -d ' ')
+
+if [ "$CHILD_REPOS" -lt 2 ] && [ ! -f "$WORKSPACE_DIR/CLAUDE.md" ]; then
+  echo "Warning: '$WORKSPACE_DIR' doesn't look like a workspace root."
+  echo ""
+  echo "Rex projects should have a root directory structure like:"
+  echo ""
+  echo "  getdone/          <-- workspace root (open Claude Code here)"
+  echo "    gd-api/         <-- child repo"
+  echo "    gd-ui/          <-- child repo"
+  echo "    CLAUDE.md       <-- workspace-level instructions"
+  echo "    .claude/        <-- workspace-level commands & config"
+  echo ""
+  echo "  payup/"
+  echo "    payup-api/"
+  echo "    payup-ui/"
+  echo "    CLAUDE.md"
+  echo ""
+  echo "If you haven't set this up yet:"
+  echo "  1. Create a root directory for your product (e.g., mkdir ~/projects/getdone)"
+  echo "  2. Clone your repos inside it (gd-api, gd-ui, etc.)"
+  echo "  3. Create a /setup-repos command to automate cloning child repos:"
+  echo "     mkdir -p <workspace>/.claude/commands"
+  echo "     Then create <workspace>/.claude/commands/setup-repos.md listing your repos."
+  echo "     See getdone/.claude/commands/setup-repos.md for an example."
+  echo "  4. Open Claude Code from the root directory"
+  echo "  5. Re-run this script from inside a child repo"
+  echo ""
+  read -p "Continue anyway? (y/N) " -n 1 -r
+  echo
+  if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    echo "Aborted. Set up your workspace root first."
+    exit 0
+  fi
+fi
+
+# ─── Add imports to repo CLAUDE.md ────────────────────────────
+CLAUDE_MD="$REPO_ROOT/CLAUDE.md"
+
 if [ -f "$CLAUDE_MD" ]; then
   if grep -q "rex/zoho-workflow" "$CLAUDE_MD"; then
     echo "CLAUDE.md already has rex imports. Skipping."
@@ -30,24 +81,22 @@ if [ -f "$CLAUDE_MD" ]; then
     echo "" >> "$CLAUDE_MD"
     echo "# Rex Team Standards" >> "$CLAUDE_MD"
     echo "@~/.claude/rules/rex/zoho-workflow.md" >> "$CLAUDE_MD"
-    echo "Updated CLAUDE.md with rex imports."
+    echo "Updated $CLAUDE_MD with rex imports."
   fi
 else
   echo "# Rex Team Standards" > "$CLAUDE_MD"
   echo "@~/.claude/rules/rex/zoho-workflow.md" >> "$CLAUDE_MD"
-  echo "Created CLAUDE.md with rex imports."
+  echo "Created $CLAUDE_MD with rex imports."
 fi
 
-# Check for prod-release command at workspace level
-WORKSPACE_DIR="$(dirname "$(git rev-parse --show-toplevel)")"
-if [ -f "$WORKSPACE_DIR/.claude/skills/prod-release/SKILL.md" ] || [ -f "$PROJECT_DIR/.claude/skills/prod-release/SKILL.md" ]; then
+# ─── Check for /prod-release command ──────────────────────────
+if [ -f "$WORKSPACE_DIR/.claude/skills/prod-release/SKILL.md" ] || [ -f "$REPO_ROOT/.claude/skills/prod-release/SKILL.md" ]; then
   echo "/prod-release command already configured."
 else
   echo ""
   echo "No /prod-release command found for this workspace."
-  echo "Run rex-setup-release to configure one:"
+  echo "Run rex-setup-release from inside the repo to configure one:"
   echo "  $STANDARDS_DIR/bin/rex-setup-release"
-  echo ""
 fi
 
 echo ""
