@@ -1,3 +1,3 @@
 # Rex Team Standards
 
-@rules/zoho-workflow.md
+@rules/feature-implementation-cycle.md

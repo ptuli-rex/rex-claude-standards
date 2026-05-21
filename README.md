@@ -1,6 +1,6 @@
 # Rex Claude Standards
 
-Shared Claude Code conventions for the Rex tech team. Provides Zoho workflow rules and project references that every team member's Claude Code picks up automatically.
+Shared Claude Code conventions for the Rex tech team. Provides the feature implementation playbook and tooling that every team member's Claude Code picks up automatically.
 
 ## Quick Start
 
@@ -32,8 +32,7 @@ Interactive script that creates a `/prod-release` command tailored to how your s
 
 | Rule | Description |
 |------|-------------|
-| `rules/zoho-workflow.md` | Zoho task lifecycle, status IDs, task requirement for features |
-| `rules/project-ids.md` | Zoho portal and project ID reference |
+| `rules/feature-implementation-cycle.md` | End-to-end playbook for shipping a feature: brief → per-subtask impl → debug → e2e → tracker → memory → secrets |
 
 ## How It Works
 

@@ -87,17 +87,17 @@ fi
 
 for CLAUDE_MD in "${TARGETS[@]}"; do
   if [ -f "$CLAUDE_MD" ]; then
-    if grep -q "rex/zoho-workflow" "$CLAUDE_MD"; then
+    if grep -q "rex/feature-implementation-cycle" "$CLAUDE_MD"; then
       echo "Already has rex imports: $CLAUDE_MD"
     else
       echo "" >> "$CLAUDE_MD"
       echo "# Rex Team Standards" >> "$CLAUDE_MD"
-      echo "@~/.claude/rules/rex/zoho-workflow.md" >> "$CLAUDE_MD"
+      echo "@~/.claude/rules/rex/feature-implementation-cycle.md" >> "$CLAUDE_MD"
       echo "Updated: $CLAUDE_MD"
     fi
   else
     echo "# Rex Team Standards" > "$CLAUDE_MD"
-    echo "@~/.claude/rules/rex/zoho-workflow.md" >> "$CLAUDE_MD"
+    echo "@~/.claude/rules/rex/feature-implementation-cycle.md" >> "$CLAUDE_MD"
     echo "Created: $CLAUDE_MD"
   fi
 done
