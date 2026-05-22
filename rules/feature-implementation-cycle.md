@@ -24,6 +24,13 @@ git rev-parse --show-toplevel  # confirms git root matches
 
 If cwd is wrong: STOP and either restart Claude Code from the right dir, or commit to `cd` on every Bash call for the rest of the session.
 
+**Also verify working-tree state** (per `feedback_vercel_deploy_bypasses_git.md`):
+```bash
+git status                              # any uncommitted feature work?
+git log origin/main..HEAD --oneline     # any unpushed commits?
+```
+Uncommitted files that look like real feature work (not auto-appended noise like AGENTS.md from claude-mem) may have been deployed to prod via `vercel deploy --prod` from a previous session. **Do not discard them.** Ask the user: "These look like prod-deployed changes — should I commit them so main catches up to prod?" Discovered 2026-05-21 with F.1 inbound webhook fixes that were live on prod but uncommitted locally.
+
 ---
 
 ## 1. Brief
@@ -56,6 +63,11 @@ Per `feedback_test_sizing.md`: each subtask ships with **smoke spec + typecheck 
 - Persona-named entities translated to scope tiers in code (`property`/`regional`/`corporate`, not Maria/Sarah/Connor).
 
 **Deploy bundling** (per `feedback_bundled_prod_deploys.md`): if multiple small fixes are queued for the same window, bundle them into one prod deploy. Don't push 5 deploys for 5 one-line changes.
+
+**Deploy path = `git push`, NEVER `vercel deploy --prod` from local** (per `feedback_vercel_deploy_bypasses_git.md`):
+- `vercel deploy --prod` uploads the working tree directly, bypassing git entirely. Prod silently drifts ahead of `main`, the audit trail breaks, and a stray `git reset --hard` wipes the only copy of the fix.
+- The correct path: `git commit` → `git push origin main` → Vercel-on-push handles the deploy. Git log and prod stay in lockstep.
+- If you must hotfix without committing (rare — only when CI is broken), commit IMMEDIATELY after verifying so the audit trail catches up within the same session. Do not walk away with uncommitted prod-deployed code.
 
 ---
 
@@ -176,8 +188,10 @@ Per `feedback_answer_before_escalating.md`: factual questions get 3-line answers
 
 ```
 [ ] cwd verified — Claude launched from project root, not parent
+[ ] Working tree clean OR uncommitted feature-work reconciled with user
 [ ] Brief written, Codex-reviewed, dispatched
 [ ] Per-task: code + smoke + typecheck + lint clean
+[ ] Deploys go via `git push`, NOT `vercel deploy --prod` from local
 [ ] Bundle deploys when same window
 [ ] End-of-epic e2e written and PASSING locally
 [ ] Tracker cards moved to done (broad search, not just the obvious one)
